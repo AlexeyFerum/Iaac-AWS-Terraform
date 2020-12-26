@@ -10,30 +10,12 @@ terraform {
 }
 
 provider "aws" {
+  profile = "default"
   region = "us-east-2"
-  access_key = "AKIAJ6YLPPEJIZUKVUIQ"
-  secret_key = "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"
 }
 
 provider "docker" {
-  host = "tcp://127.0.0.1:2376/"
-}
-
-resource "aws_instance" "hw3" {
-    ami = "ami-0c55b159cbfafe1f0"
-    instance_type = "t2.micro"
-
-    user_data = <<-EOF
-                #!/bin/bash
-                echo "Hello, world" > index.html
-                nohup busybox httpd -f -p 8080 &
-                EOF
-
-    vpc_security_group_ids = [aws_security_group.hw3_asg.id]
-
-    tags = {
-        Name = "terraform_hw3"
-    }
+  host = "tcp://127.0.0.1:2375/"
 }
 
 resource "aws_security_group" "hw3_sg" {
@@ -72,6 +54,21 @@ resource "aws_security_group" "hw3_sg" {
   }
 }
 
+resource "aws_instance" "hw3_ec2" {
+    ami = "ami-0c55b159cbfafe1f0"
+    instance_type = "t2.micro"
+
+    user_data = <<-EOF
+                #!/bin/bash
+                echo "Hello, world" > index.html
+                nohup busybox httpd -f -p 8080 &
+                EOF
+
+    vpc_security_group_ids = [
+      aws_security_group.hw3_sg.id
+    ]
+}
+
 resource "aws_db_instance" "hw3_db" {
   name = "hw3_db"
   allocated_storage = 20
@@ -83,7 +80,7 @@ resource "aws_db_instance" "hw3_db" {
   password = "Ghbdtn77!"
   parameter_group_name = "default.mysql5.7"
 
-  vpc_security_group_ids = [aws_security_group.hw3-asg.id]
+  vpc_security_group_ids = [aws_security_group.hw3_sg.id]
 }
 
 resource "aws_api_gateway_rest_api" "hw3_api" {
@@ -103,13 +100,14 @@ resource "aws_api_gateway_method" "hw3_api_r1_m1" {
   http_method = "GET"
   authorization = "NONE"
 }
+
 resource "aws_api_gateway_integration" "hw3_api_r1_m1_integration" {
   rest_api_id = aws_api_gateway_rest_api.hw3_api.id
   resource_id = aws_api_gateway_resource.hw3_api_r1.id
   http_method = aws_api_gateway_method.hw3_api_r1_m1.http_method
   type = "HTTP_PROXY"
   integration_http_method = "GET"
-  uri = "http://${aws_instance.hw3_ec2.public_ip}/"
+  uri = "http://${aws_instance.hw3_ec2.public_ip}:8080/"
 }
 
 resource "docker_container" "hw3_zap-container" {
@@ -122,7 +120,7 @@ resource "docker_container" "hw3_zap-container" {
 resource "docker_image" "hw3_zap_image" {
   name = "hw3_zap_image"
   build {
-    path = "zap"
+    path = "docker"
   }
 }
 
